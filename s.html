@@ -1,0 +1,289 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Smart Parking Management System" },
+      { name: "description", content: "Live animated visualization of an IoT-powered smart parking lot with real-time slot detection." },
+    ],
+  }),
+  component: Index,
+});
+
+type SlotState = "free" | "occupied" | "reserved";
+const TOTAL = 24;
+
+function Index() {
+  const [slots, setSlots] = useState<SlotState[]>(() =>
+    Array.from({ length: TOTAL }, (_, i) => (i % 5 === 0 ? "reserved" : i % 3 === 0 ? "occupied" : "free"))
+  );
+  const [incoming, setIncoming] = useState(false);
+  const [plate, setPlate] = useState("KA-01-AB-2026");
+  const [tick, setTick] = useState(0);
+  const [time, setTime] = useState<string>("");
+
+  useEffect(() => {
+    const updateTime = () => setTime(new Date().toLocaleTimeString());
+    updateTime();
+    const timeId = setInterval(updateTime, 1000);
+    return () => clearInterval(timeId);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSlots((prev) => {
+        const next = [...prev];
+        const i = Math.floor(Math.random() * TOTAL);
+        if (next[i] === "reserved") return next;
+        next[i] = next[i] === "free" ? "occupied" : "free";
+        return next;
+      });
+      setTick((t) => t + 1);
+    }, 1800);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIncoming(true);
+      const plates = ["KA-01-AB-2026", "MH-12-XY-7788", "DL-08-CA-4421", "TN-22-ZE-0099"];
+      setPlate(plates[Math.floor(Math.random() * plates.length)]);
+      setTimeout(() => setIncoming(false), 4500);
+    }, 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  const stats = useMemo(() => {
+    const occupied = slots.filter((s) => s === "occupied").length;
+    const reserved = slots.filter((s) => s === "reserved").length;
+    const free = TOTAL - occupied - reserved;
+    return { occupied, reserved, free, pct: Math.round(((occupied + reserved) / TOTAL) * 100) };
+  }, [slots]);
+
+  return (
+    <div className="min-h-screen px-6 py-8 md:px-12">
+      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="relative size-10 rounded-lg bg-primary/20 grid place-items-center">
+            <div className="absolute inset-0 rounded-lg border border-primary/40 animate-pulse-ring" />
+            <span className="font-mono text-primary text-lg">P</span>
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight">SmartPark <span className="text-primary">OS</span></h1>
+            <p className="text-xs text-muted-foreground font-mono">IoT · Computer Vision · Live</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+          <span className="size-2 rounded-full bg-primary animate-blink" />
+          SYS_ONLINE · {time || "--:--:--"}
+        </div>
+      </header>
+
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+        {/* Parking Lot */}
+        <section className="relative rounded-2xl border border-border bg-[oklch(0.18_0.02_250)] overflow-hidden">
+          <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(var(--color-foreground)_1px,transparent_1px),linear-gradient(90deg,var(--color-foreground)_1px,transparent_1px)] bg-[size:32px_32px]" />
+
+          <div className="relative p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-semibold tracking-tight">Lot A — Level 1</h2>
+              <span className="text-xs font-mono text-muted-foreground">24 BAYS · LIVE FEED</span>
+            </div>
+
+            {/* Entry lane with barrier + car */}
+            <div className="relative h-20 mb-4 rounded-lg bg-lane border border-border/60 overflow-hidden">
+              <div className="absolute inset-y-0 left-0 right-0 flex items-center">
+                <div className="flex-1 border-t-2 border-dashed border-foreground/15 mx-4" />
+              </div>
+              {/* car */}
+              <div
+                key={tick + (incoming ? "in" : "out")}
+                className="absolute top-1/2 -translate-y-1/2 left-2"
+                style={{ animation: incoming ? "drive-in 3.5s ease-out forwards" : "none", opacity: incoming ? 1 : 0 }}
+              >
+                <Car />
+              </div>
+              {/* barrier */}
+              <div className="absolute top-1/2 -translate-y-1/2" style={{ left: "55%" }}>
+                <div className="relative w-2 h-2">
+                  <div className="absolute left-0 top-0 w-2 h-2 rounded-full bg-accent" />
+                  <div
+                    className="absolute left-1 top-1 h-1.5 w-16 origin-left rounded-sm bg-gradient-to-r from-accent to-danger"
+                    style={{ animation: incoming ? "barrier 4s ease-in-out" : "none" }}
+                  />
+                </div>
+              </div>
+              {/* camera scan */}
+              <div className="absolute top-0 bottom-0 left-[30%] w-24 overflow-hidden pointer-events-none">
+                {incoming && <div className="absolute inset-x-0 h-12 bg-gradient-to-b from-primary/0 via-primary/30 to-primary/0 animate-scan" />}
+              </div>
+              <div className="absolute top-2 right-3 text-[10px] font-mono text-muted-foreground">ENTRY · CAM-01</div>
+            </div>
+
+            {/* Slot grid */}
+            <div className="grid grid-cols-6 md:grid-cols-8 gap-2.5">
+              {slots.map((s, i) => (
+                <Slot key={i} state={s} index={i} />
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-4 text-xs font-mono">
+              <Legend color="var(--color-success)" label="AVAILABLE" />
+              <Legend color="var(--color-danger)" label="OCCUPIED" />
+              <Legend color="var(--color-accent)" label="RESERVED" />
+            </div>
+          </div>
+        </section>
+
+        {/* Dashboard */}
+        <aside className="flex flex-col gap-4">
+          <Card>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-mono text-muted-foreground">OCCUPANCY</h3>
+              <span className="text-xs font-mono text-primary">LIVE</span>
+            </div>
+            <div className="mt-3 flex items-end gap-2">
+              <div key={stats.pct} className="text-5xl font-semibold tabular-nums" style={{ animation: "count-up 0.4s ease-out" }}>
+                {stats.pct}%
+              </div>
+            </div>
+            <div className="mt-4 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-primary via-accent to-danger transition-all duration-700"
+                style={{ width: `${stats.pct}%` }}
+              />
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <Stat value={stats.free} label="FREE" color="var(--color-success)" />
+              <Stat value={stats.occupied} label="BUSY" color="var(--color-danger)" />
+              <Stat value={stats.reserved} label="RSVP" color="var(--color-accent)" />
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-mono text-muted-foreground mb-3">ANPR · ENTRY GATE</h3>
+            <div className="rounded-md border-2 border-dashed border-primary/40 bg-background/40 p-3 text-center">
+              <div className="text-[10px] font-mono text-muted-foreground mb-1">LICENSE PLATE</div>
+              <div key={plate} className="text-xl font-mono tracking-widest text-primary" style={{ animation: "count-up 0.5s ease-out" }}>
+                {plate}
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs font-mono">
+              <span className="text-muted-foreground">STATUS</span>
+              <span className={incoming ? "text-primary" : "text-muted-foreground"}>
+                {incoming ? "● VERIFIED · GATE OPEN" : "○ IDLE"}
+              </span>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-mono text-muted-foreground mb-3">SENSOR EVENTS</h3>
+            <EventLog slots={slots} tick={tick} />
+          </Card>
+        </aside>
+      </div>
+
+      <footer className="mt-8 text-center text-xs font-mono text-muted-foreground">
+        SmartPark OS · Ultrasonic + Vision Fusion · 99.4% uptime
+      </footer>
+    </div>
+  );
+}
+
+function Slot({ state, index }: { state: SlotState; index: number }) {
+  const color =
+    state === "free" ? "var(--color-success)" : state === "occupied" ? "var(--color-danger)" : "var(--color-accent)";
+  return (
+    <div className="relative aspect-[3/4] rounded-md bg-slot border border-border/60 overflow-hidden group">
+      <div className="absolute inset-x-1 top-1 text-[9px] font-mono text-muted-foreground">A{String(index + 1).padStart(2, "0")}</div>
+      <div className="absolute inset-x-0 bottom-0 h-[70%] flex items-center justify-center">
+        {state === "occupied" && <MiniCar />}
+        {state === "reserved" && <div className="text-[10px] font-mono text-accent">RSVP</div>}
+      </div>
+      <div
+        className="absolute bottom-1 left-1 right-1 h-1 rounded-full transition-colors"
+        style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+      />
+      {state === "free" && (
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="size-2 rounded-full animate-blink" style={{ backgroundColor: color }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Car() {
+  return (
+    <svg width="72" height="32" viewBox="0 0 72 32" fill="none">
+      <rect x="6" y="10" width="60" height="14" rx="4" fill="var(--color-primary)" />
+      <rect x="14" y="4" width="40" height="10" rx="3" fill="var(--color-primary)" opacity="0.7" />
+      <circle cx="18" cy="26" r="4" fill="oklch(0.2 0.02 250)" />
+      <circle cx="54" cy="26" r="4" fill="oklch(0.2 0.02 250)" />
+      <rect x="60" y="14" width="6" height="3" fill="var(--color-accent)" />
+    </svg>
+  );
+}
+
+function MiniCar() {
+  return (
+    <svg width="28" height="36" viewBox="0 0 28 36" fill="none">
+      <rect x="3" y="4" width="22" height="28" rx="4" fill="var(--color-danger)" opacity="0.85" />
+      <rect x="5" y="8" width="18" height="8" rx="2" fill="oklch(0.2 0.02 250)" opacity="0.6" />
+      <rect x="5" y="20" width="18" height="8" rx="2" fill="oklch(0.2 0.02 250)" opacity="0.4" />
+    </svg>
+  );
+}
+
+function Card({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-2xl border border-border bg-[oklch(0.18_0.02_250)] p-5">{children}</div>;
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-muted-foreground">
+      <span className="size-2.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }} />
+      {label}
+    </div>
+  );
+}
+
+function Stat({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <div className="rounded-md bg-background/40 py-2">
+      <div className="text-lg font-semibold tabular-nums" style={{ color }}>{value}</div>
+      <div className="text-[10px] font-mono text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function EventLog({ slots, tick }: { slots: SlotState[]; tick: number }) {
+  const [events, setEvents] = useState<{ id: number; text: string; type: string }[]>([]);
+  useEffect(() => {
+    const i = Math.floor(Math.random() * slots.length);
+    const text = `A${String(i + 1).padStart(2, "0")} → ${slots[i].toUpperCase()}`;
+    setEvents((e) => [{ id: tick, text, type: slots[i] }, ...e].slice(0, 5));
+  }, [tick]);
+
+  return (
+    <ul className="space-y-1.5 text-xs font-mono">
+      {events.map((e, idx) => (
+        <li
+          key={e.id}
+          className="flex items-center justify-between rounded bg-background/40 px-2 py-1.5"
+          style={{ opacity: 1 - idx * 0.15, animation: idx === 0 ? "count-up 0.3s ease-out" : undefined }}
+        >
+          <span className="text-muted-foreground">{e.text}</span>
+          <span
+            className="size-1.5 rounded-full"
+            style={{
+              backgroundColor:
+                e.type === "free" ? "var(--color-success)" : e.type === "occupied" ? "var(--color-danger)" : "var(--color-accent)",
+            }}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}

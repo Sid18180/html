@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Smart Parking Management System</title>
+<style>
+  :root{
+    --bg:#0a0f1c; --panel:#111a2e; --line:#1f2c47;
+    --txt:#e6ecff; --mute:#7c8aa8;
+    --ok:#22d3a5; --busy:#ff5577; --warn:#ffbf3c; --accent:#3ea1ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:
+    radial-gradient(1200px 600px at 20% -10%, #142046 0%, transparent 60%),
+    radial-gradient(800px 500px at 100% 100%, #0c2545 0%, transparent 60%),
+    var(--bg); color:var(--txt); min-height:100vh;}
+  header{display:flex;justify-content:space-between;align-items:center;padding:18px 28px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:20px;letter-spacing:1px}
+  h1 span{color:var(--accent)}
+  .status{display:flex;gap:14px;align-items:center;color:var(--mute);font-size:13px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:blink 1.4s infinite}
+  main{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;padding:20px;max-width:1300px;margin:auto}
+  @media(max-width:900px){main{grid-template-columns:1fr}}
+  .panel{background:linear-gradient(180deg,#0f1830,#0b1226);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+  .panel h2{margin:0 0 14px;font-size:14px;letter-spacing:2px;color:var(--mute);text-transform:uppercase}
+  .lot{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .slot{aspect-ratio:1/1.4;border:1px dashed #2a3a5e;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--mute);position:relative;transition:.4s}
+  .slot.occupied{background:linear-gradient(180deg,#2a0f1d,#3a1226);border:1px solid var(--busy);color:#ffd9e2}
+  .slot.free{background:linear-gradient(180deg,#0f2a22,#0b2218);border:1px solid var(--ok);color:#c8ffe9}
+  .slot .car{position:absolute;inset:18% 22%;background:linear-gradient(180deg,#ff5577,#a01840);border-radius:4px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25);animation:drive .5s ease}
+  .gate{display:flex;align-items:center;gap:16px;padding:14px;background:#0a1730;border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden;position:relative;height:90px}
+  .road{flex:1;height:30px;background:repeating-linear-gradient(90deg,#1c2748 0 20px,#0a1730 20px 40px);border-radius:4px;position:relative}
+  .mini-car{position:absolute;left:-50px;top:3px;width:46px;height:24px;background:linear-gradient(180deg,#3ea1ff,#1a5fb0);border-radius:5px;animation:drivein 4s linear infinite}
+  .barrier{width:50px;height:6px;background:linear-gradient(90deg,#ffbf3c,#222);border-radius:2px;transform-origin:left;animation:bar 4s linear infinite}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .stat{padding:14px;background:#0a1730;border:1px solid var(--line);border-radius:10px;text-align:center}
+  .stat .v{font-size:26px;font-weight:700}
+  .stat .l{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:1px}
+  .v.ok{color:var(--ok)} .v.busy{color:var(--busy)} .v.acc{color:var(--accent)}
+  .plate{font-family:'Courier New',monospace;background:#fff;color:#111;padding:8px 14px;border-radius:6px;font-weight:700;letter-spacing:3px;display:inline-block;border:2px solid #ffbf3c}
+  .log{font-size:12px;color:var(--mute);max-height:200px;overflow:hidden}
+  .log div{padding:6px 0;border-bottom:1px dashed #1c2748;animation:fade .5s}
+  .scan{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 3s linear infinite}
+  @keyframes blink{50%{opacity:.3}}
+  @keyframes drive{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes drivein{0%{left:-50px}40%{left:40%}55%{left:40%}100%{left:110%}}
+  @keyframes bar{0%,40%{transform:rotate(-80deg)}50%,90%{transform:rotate(0)}100%{transform:rotate(-80deg)}}
+  @keyframes scan{0%{top:0}100%{top:100%}}
+  @keyframes fade{from{opacity:0;transform:translateY(-4px)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>SMART <span>PARKING</span> MANAGEMENT</h1>
+  <div class="status"><span class="dot"></span><span id="clock">--:--:--</span><span>● ONLINE</span></div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="scan"></div>
+    <h2>Parking Lot · Level 1</h2>
+    <div class="lot" id="lot"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Live Dashboard</h2>
+    <div class="stats">
+      <div class="stat"><div class="v ok" id="free">0</div><div class="l">Free</div></div>
+      <div class="stat"><div class="v busy" id="busy">0</div><div class="l">Occupied</div></div>
+      <div class="stat"><div class="v acc" id="pct">0%</div><div class="l">Usage</div></div>
+    </div>
+
+    <h2>ANPR Entry Gate</h2>
+    <div class="gate">
+      <div class="road"><div class="mini-car"></div></div>
+      <div class="barrier"></div>
+    </div>
+    <div style="text-align:center;margin:10px 0 18px">
+      Detected plate: <span class="plate" id="plate">KA·01·9821</span>
+    </div>
+
+    <h2>Sensor Events</h2>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<script>
+  const TOTAL=24, lot=document.getElementById('lot'), slots=[];
+  for(let i=0;i<TOTAL;i++){
+    const s=document.createElement('div');
+    s.className='slot free';
+    s.innerHTML='A'+String(i+1).padStart(2,'0');
+    lot.appendChild(s); slots.push({el:s,occ:false});
+  }
+  const plates=['KA01-9821','MH12-3344','DL08-7710','TN09-5521','UP16-0099','GJ05-4477'];
+  const free=document.getElementById('free'), busy=document.getElementById('busy'),
+        pct=document.getElementById('pct'), log=document.getElementById('log'),
+        plate=document.getElementById('plate'), clock=document.getElementById('clock');
+
+  function refresh(){
+    let b=0;
+    slots.forEach((s,i)=>{
+      s.el.className='slot '+(s.occ?'occupied':'free');
+      s.el.innerHTML='A'+String(i+1).padStart(2,'0')+(s.occ?'<div class="car"></div>':'');
+      if(s.occ) b++;
+    });
+    busy.textContent=b; free.textContent=TOTAL-b;
+    pct.textContent=Math.round(b/TOTAL*100)+'%';
+  }
+  function event(msg){
+    const d=document.createElement('div'); d.textContent='› '+msg;
+    log.prepend(d); while(log.children.length>8) log.lastChild.remove();
+  }
+  setInterval(()=>{
+    const i=Math.floor(Math.random()*TOTAL);
+    slots[i].occ=!slots[i].occ;
+    event((slots[i].occ?'Vehicle parked at ':'Slot freed: ')+'A'+String(i+1).padStart(2,'0'));
+    refresh();
+  },1800);
+  setInterval(()=>{
+    plate.textContent=plates[Math.floor(Math.random()*plates.length)];
+    event('ANPR scan → '+plate.textContent+' · granted');
+  },4000);
+  setInterval(()=>clock.textContent=new Date().toLocaleTimeString(),1000);
+  refresh(); event('System initialized · 24 bays online');
+</script>
+</body>
+</html>
